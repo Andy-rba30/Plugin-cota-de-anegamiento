@@ -24,7 +24,11 @@ def test_algoritmo_rapido_solo_dem_visible():
     a.initAlgorithm()
     visibles = [p.name() for p in a.parameterDefinitions()
                 if not p.isDestination() and not (p.flags() & 2)]
-    assert visibles == ["DEM", "EJE"]
+    assert visibles == ["DEM", "EJE", "P_DISENO", "CN", "PROF_MIN", "AREA_MIN", "ALTURA_VIA", "BORDE_LIBRE"]
+    assert visibles[0] == "DEM"
+    # lo especializado sigue en avanzados
+    for n in ("SERIE", "TR", "C", "MODO", "CELDA", "HUECOS", "Q_DESB"):
+        assert a.parameterDefinition(n).flags() & 2
     assert a.name() == "cota_anegamiento_rapido"
     assert a.createInstance().name() == "cota_anegamiento_rapido"
     assert "DEM" in a.shortHelpString()

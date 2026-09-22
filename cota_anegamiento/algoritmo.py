@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+# Complemento QGIS «Cota de Anegamiento»
+# Copyright (C) 2026 Jose Ospina
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. See the LICENSE file for details.
 """
 Algoritmos de Procesos de QGIS del complemento «Cota de Anegamiento».
 
@@ -998,7 +1005,19 @@ class CotaAnegamientoRapidoAlgorithm(CotaAnegamientoAlgorithm):
     la sección «Parámetros avanzados», de modo que basta con elegir el DEM y
     pulsar Ejecutar."""
 
-    VISIBLES = (CotaAnegamientoAlgorithm.DEM, CotaAnegamientoAlgorithm.EJE)
+    # Datos de entrada a la vista: el DEM, el eje y los parámetros que cambian
+    # de un proyecto a otro. Lo demás (Gumbel, coeficiente C, celda de trabajo,
+    # desborde del río…) queda en «Parámetros avanzados».
+    VISIBLES = (
+        CotaAnegamientoAlgorithm.DEM,
+        CotaAnegamientoAlgorithm.EJE,
+        CotaAnegamientoAlgorithm.P_DISENO,
+        CotaAnegamientoAlgorithm.CN,
+        CotaAnegamientoAlgorithm.PROF_MIN,
+        CotaAnegamientoAlgorithm.AREA_MIN,
+        CotaAnegamientoAlgorithm.ALTURA_VIA,
+        CotaAnegamientoAlgorithm.BORDE_LIBRE,
+    )
 
     def createInstance(self):
         return CotaAnegamientoRapidoAlgorithm()
@@ -1007,13 +1026,14 @@ class CotaAnegamientoRapidoAlgorithm(CotaAnegamientoAlgorithm):
         return "cota_anegamiento_rapido"
 
     def displayName(self):
-        return self.tr("Análisis rápido: cota de anegamiento solo con el DEM")
+        return self.tr("Análisis rápido: cota de anegamiento con el DEM")
 
     def shortHelpString(self):
         return self.tr(
-            "<p><b>Elige el DEM y pulsa Ejecutar.</b> Todo lo demás es opcional y tiene valores por defecto "
-            "razonables para un estudio a nivel de perfil (lluvia de diseño de 150 mm, CN = 88, filtro de ruido "
-            "de 0.30 m y 2 000 m², terraplén de 2 m, borde libre de 0.50 m).</p>"
+            "<p><b>Elige el DEM, revisa los datos de entrada y pulsa Ejecutar.</b> Solo el DEM es obligatorio; "
+            "los demás datos vienen con valores por defecto razonables para un estudio a nivel de perfil "
+            "(lluvia de diseño de 150 mm, CN = 88, filtro de ruido de 0.30 m y 2 000 m², terraplén de 2 m, "
+            "borde libre de 0.50 m) y conviene ajustarlos a la zona del proyecto.</p>"
             "<p>El DEM puede estar en grados o en metros: si está en grados se reproyecta solo a la zona UTM que "
             "corresponde; si es muy grande se remuestrea; los huecos pequeños sin datos se rellenan.</p>"
             "<p>Si además indicas el eje de la vía, obtendrás la cota de agua y la rasante mínima a lo largo del "

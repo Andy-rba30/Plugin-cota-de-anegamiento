@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## 1.1.1
+- Licencia **GPL-2.0 o posterior** (archivo `LICENSE`), requisito del repositorio oficial de QGIS.
+- Análisis rápido: la lluvia de diseño, el CN, la profundidad y el área mínimas, la altura del
+  terraplén y el borde libre aparecen como datos de entrada junto al DEM y al eje. Gumbel,
+  coeficiente C, modo de cálculo, celda de trabajo, huecos y desborde del río siguen en
+  «Parámetros avanzados».
+
 ## 1.1.0
 
 ### Nuevo

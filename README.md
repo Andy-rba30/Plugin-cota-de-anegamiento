@@ -15,11 +15,13 @@ Solo usa `numpy` y GDAL, que ya vienen con QGIS. Funciona en QGIS 3.16 o superio
 3. Aparecerá un ícono en la barra de herramientas, el menú **Complementos › Cota de Anegamiento**
    y el grupo **Cota de Anegamiento › Hidrología vial** en la caja de herramientas de Procesos.
 
-## Uso rápido (solo con el DEM)
+## Uso rápido
 
 1. Carga el DEM en el proyecto (en metros o en grados, da igual).
-2. Pulsa el ícono **Cota de anegamiento (solo con el DEM)**.
-3. Elige el DEM y pulsa **Ejecutar**.
+2. Pulsa el ícono **Cota de anegamiento (análisis rápido)**.
+3. Elige el DEM. Revisa los datos de entrada que aparecen debajo (lluvia de diseño, CN,
+   filtros de ruido, altura del terraplén y borde libre; vienen con valores por defecto) y
+   pulsa **Ejecutar**. Solo el DEM es obligatorio.
 
 El complemento:
 
@@ -91,3 +93,7 @@ docs/              guía en PDF y análisis
 
 El resultado es referencial, apropiado para estudios a nivel de perfil. En el expediente
 técnico debe validarse con topografía de detalle, huellas de inundación y un modelo hidráulico.
+
+## Licencia
+
+GPL-2.0 o posterior. Ver [LICENSE](LICENSE).

@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+# Complemento QGIS «Cota de Anegamiento»
+# Copyright (C) 2026 Jose Ospina
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. See the LICENSE file for details.
 import os
 
 from qgis.PyQt.QtCore import QUrl
@@ -34,8 +41,8 @@ class CotaAnegamientoPlugin:
         carpeta = os.path.dirname(__file__)
         icono = QIcon(os.path.join(carpeta, "icon.png"))
 
-        rapido = QAction(icono, "Cota de anegamiento (solo con el DEM)", self.iface.mainWindow())
-        rapido.setToolTip("Elige el DEM y ejecuta: cota de anegamiento con parámetros por defecto")
+        rapido = QAction(icono, "Cota de anegamiento (análisis rápido)", self.iface.mainWindow())
+        rapido.setToolTip("Elige el DEM, revisa lluvia, CN y filtros, y ejecuta")
         rapido.triggered.connect(lambda: self.ejecutar(ID_ALGORITMO_RAPIDO))
         self.iface.addToolBarIcon(rapido)
         self.iface.addPluginToMenu(MENU, rapido)
