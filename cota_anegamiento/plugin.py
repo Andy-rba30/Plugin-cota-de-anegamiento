@@ -22,6 +22,7 @@ ID_ALGORITMO_RAPIDO = "cotaanegamiento:cota_anegamiento_rapido"
 ID_ALGORITMO_COMPLETO = "cotaanegamiento:cota_anegamiento"
 MENU = "&Cota de Anegamiento"
 URL_GUIA = "https://github.com/Andy-rba30/Plugin-cota-de-anegamiento/blob/main/docs/Guia_Cota_Anegamiento.pdf"
+URL_MANUAL = "https://github.com/Andy-rba30/Plugin-cota-de-anegamiento/blob/main/docs/MANUAL_PARAMETROS.md"
 
 
 class CotaAnegamientoPlugin:
@@ -58,6 +59,11 @@ class CotaAnegamientoPlugin:
         guia.triggered.connect(self.abrir_guia)
         self.iface.addPluginToMenu(MENU, guia)
         self.acciones.append(guia)
+
+        manual = QAction("Manual de parámetros (criterios)", self.iface.mainWindow())
+        manual.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(URL_MANUAL)))
+        self.iface.addPluginToMenu(MENU, manual)
+        self.acciones.append(manual)
 
     def ejecutar(self, id_algoritmo):
         import processing

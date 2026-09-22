@@ -37,6 +37,9 @@ def main():
                 z.write(completo, os.path.relpath(completo, RAIZ))
         if os.path.exists(guia):
             z.write(guia, os.path.join("cota_anegamiento", "Guia_Cota_Anegamiento.pdf"))
+        manual = os.path.join(RAIZ, "docs", "MANUAL_PARAMETROS.md")
+        if os.path.exists(manual):
+            z.write(manual, os.path.join("cota_anegamiento", "MANUAL_PARAMETROS.md"))
     print("Creado %s (v%s, %.0f KB)" % (ruta, version(), os.path.getsize(ruta) / 1024.0))
 
 

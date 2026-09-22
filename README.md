@@ -38,6 +38,10 @@ El complemento:
 Si además indicas el **eje de la vía**, obtienes la cota de agua y la rasante mínima cada 20 m,
 y un segundo escenario con la vía en terraplén para ubicar las alcantarillas.
 
+Si indicas la **red de drenes** (líneas con capacidad, ancho y profundidad), el balance descuenta
+de cada depresión el volumen que sus drenes pueden evacuar durante el evento y, si das la
+profundidad, los graba en el DEM para que conecten las depresiones que atraviesan.
+
 ## Análisis completo
 
 Menú **Complementos › Cota de Anegamiento › Análisis completo…** muestra todos los parámetros:
@@ -51,7 +55,7 @@ Los mismos parámetros están en la sección «Parámetros avanzados» del anál
 
 | Salida | Contenido |
 |---|---|
-| Depresiones (polígonos) | Una fila por depresión y escenario: cota de rebose, volumen, área de aporte, volumen que le llega, si se llena, cota de agua, tirante, si toca la vía o vierte sobre ella, progresiva más cercana. |
+| Depresiones (polígonos) | Una fila por depresión y escenario: cota de rebose, volumen, área de aporte, volumen que le llega, volumen evacuado por drenes, si se llena, cota de agua, tirante, si toca la vía o vierte sobre ella, progresiva más cercana. |
 | Perfil del eje (puntos) | Cada 20 m: terreno, agua sin vía y con vía, lámina de desborde, cota de diseño, rasante mínima, altura mínima de terraplén y escenario que controla. |
 | Tirante sin vía / con vía (ráster) | Profundidad del agua (m). |
 | Cota de agua sin vía (ráster) | Nivel del agua (msnm). |
@@ -66,6 +70,8 @@ número de depresiones) utilizables en el Modelador de Procesos.
 
 - [Guía paso a paso (PDF)](docs/Guia_Cota_Anegamiento.pdf): datos de entrada, parámetros,
   interpretación de resultados, problemas frecuentes y método.
+- [Manual de parámetros](docs/MANUAL_PARAMETROS.md): criterios, fuentes y valores típicos para
+  llenar cada dato de entrada, incluida la red de drenes.
 - [Análisis de la aplicación y mejoras](docs/ANALISIS_Y_MEJORAS.md).
 - [Historial de cambios](CHANGELOG.md).
 

@@ -118,3 +118,20 @@ def test_informe_y_csv(tmp_path):
     lineas = csv.read_text(encoding="utf-8-sig").splitlines()
     assert lineas[0] == "escenario;id_depresion;cota_m;area_m2;volumen_m3"
     assert lineas[2] == "sin_via;1;98.100;25.0;1.2"
+
+
+def test_raster_drenes_ancho():
+    forma = (20, 20)
+    # dren angosto: solo la línea de celdas (conectividad 4)
+    r1 = h.raster_drenes([(1, [(500002.5, 9399997.5), (500097.5, 9399997.5)], 1.0)], GT, forma)
+    assert (r1 == 1).sum() == 20
+    assert r1[0, :].all()
+    # dren de 15 m de ancho sobre celdas de 5 m: 3 filas de celdas
+    r2 = h.raster_drenes([(7, [(500002.5, 9399952.5), (500097.5, 9399952.5)], 15.0)], GT, forma)
+    assert r2[9, :].all() and r2[8, :].all() and r2[10, :].all()
+    assert not r2[7, :].any() and not r2[11, :].any()
+    assert r2.max() == 7
+    # el primero que ocupa una celda la conserva
+    r3 = h.raster_drenes([(1, [(500002.5, 9399952.5), (500097.5, 9399952.5)], 1.0),
+                          (2, [(500052.5, 9399997.5), (500052.5, 9399902.5)], 1.0)], GT, forma)
+    assert r3[9, 10] == 1 and r3[0, 10] == 2

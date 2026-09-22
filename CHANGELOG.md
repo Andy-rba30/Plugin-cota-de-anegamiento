@@ -1,5 +1,14 @@
 # Historial de cambios
 
+## 1.2.0
+- **Red de drenes.** Nueva entrada opcional: capa de líneas (por ejemplo importada de CAD) con
+  campos de capacidad (m³/s), ancho (m) y profundidad (m). Cada dren se rasteriza como franja de
+  su ancho; de cada depresión que atraviesa se descuenta capacidad × duración del evento; si tiene
+  profundidad se graba en el DEM para conectar las depresiones. Nuevos campos `vol_dren`,
+  `q_dren` y `drenes` en la capa de depresiones y sección «Red de drenes» en el informe.
+- **Manual de parámetros** (`docs/MANUAL_PARAMETROS.md`) con criterios, fuentes y valores
+  típicos para cada dato de entrada; accesible desde el menú del complemento y dentro del ZIP.
+
 ## 1.1.1
 - Licencia **GPL-2.0 o posterior** (archivo `LICENSE`), requisito del repositorio oficial de QGIS.
 - Análisis rápido: la lluvia de diseño, el CN, la profundidad y el área mínimas, la altura del

@@ -2,8 +2,8 @@
 name=Cota de Anegamiento
 qgisMinimumVersion=3.16
 description=Calcula la cota de anegamiento teórica a partir de un DEM (depresiones + balance hídrico) para el diseño de drenaje vial a nivel de perfil. Basta con elegir el DEM.
-about=Identifica las depresiones del DEM con el algoritmo Priority-Flood, descarta el ruido, calcula el área de aporte de cada depresión y hace un balance hídrico en cascada con la lluvia de diseño (Gumbel + SCS-CN o coeficiente C). Prepara el DEM automáticamente (reproyección a UTM si está en grados, remuestreo si es muy grande, relleno de huecos). Con el eje de la vía entrega la cota de agua y la rasante mínima a lo largo del eje, evalúa el represamiento que causa el terraplén (ubicación de alcantarillas) y, opcionalmente, el tirante de desborde del río en lámina (Manning). Genera polígonos, rásters de tirante, cota de agua y áreas de aporte, curvas cota-volumen en CSV y un informe HTML con gráfico del perfil, todo con simbología automática. Solo usa numpy y GDAL, que vienen con QGIS.
-version=1.1.1
+about=Identifica las depresiones del DEM con el algoritmo Priority-Flood, descarta el ruido, calcula el área de aporte de cada depresión y hace un balance hídrico en cascada con la lluvia de diseño (Gumbel + SCS-CN o coeficiente C). Prepara el DEM automáticamente (reproyección a UTM si está en grados, remuestreo si es muy grande, relleno de huecos). Acepta una red de drenes (capacidad, ancho, profundidad) que descuenta volumen de las depresiones. Con el eje de la vía entrega la cota de agua y la rasante mínima a lo largo del eje, evalúa el represamiento que causa el terraplén (ubicación de alcantarillas) y, opcionalmente, el tirante de desborde del río en lámina (Manning). Genera polígonos, rásters de tirante, cota de agua y áreas de aporte, curvas cota-volumen en CSV y un informe HTML con gráfico del perfil, todo con simbología automática. Solo usa numpy y GDAL, que vienen con QGIS.
+version=1.2.0
 author=Jose Ospina
 license=GPL-2.0-or-later
 tags=hidrología,drenaje,inundación,anegamiento,DEM,depresiones,vías,perfil,alcantarillas
@@ -16,7 +16,10 @@ deprecated=False
 hasProcessingProvider=yes
 icon=icon.png
 supportsQt6=True
-changelog=1.1.1
+changelog=1.2.0
+  - Red de drenes: capa de líneas con capacidad, ancho y profundidad; descuenta el volumen evacuable de cada depresión y, opcionalmente, graba los drenes en el DEM.
+  - Manual de parámetros con criterios para llenar cada dato de entrada (menú y ZIP).
+ 1.1.1
   - Licencia GPL-2.0 o posterior.
   - En el análisis rápido, la lluvia de diseño, el CN, los filtros de ruido, la altura del terraplén y el borde libre se muestran como datos de entrada junto al DEM.
  1.1.0

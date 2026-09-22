@@ -13,6 +13,7 @@ class Qgis:
     ProcessingSourceType = _Enum()
     WkbType = _Enum()
     ProcessingParameterFlag = type("F", (), {"Advanced": 2})
+    ProcessingFieldParameterDataType = _Enum()
     RasterBandStatistic = _Enum()
     ShaderInterpolationMethod = _Enum()
 
@@ -75,6 +76,10 @@ class QgsProcessingParameterString(QgsProcessingParameterDefinition):
 
 class QgsProcessingParameterEnum(QgsProcessingParameterDefinition):
     pass
+
+
+class QgsProcessingParameterField(QgsProcessingParameterDefinition):
+    Numeric = "numeric"
 
 
 class QgsProcessingParameterBoolean(QgsProcessingParameterDefinition):

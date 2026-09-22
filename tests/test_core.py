@@ -221,3 +221,53 @@ def test_curva_cota_volumen_monotona():
     vols = [c[2] for c in curva]
     assert vols == sorted(vols)
     assert curva[-1][2] == pytest.approx(d["vol_rebose_m3"], rel=1e-6)
+
+
+def test_drenes_descuentan_volumen():
+    """Un dren que cruza la cubeta evacúa capacidad × duración."""
+    dem = cubeta()
+    validos = np.ones_like(dem, bool)
+    sin = core.analizar(dem, validos, 25.0, 50.0, prof_min=0.3, area_min=100)
+    d0 = sin["depresiones"][0]
+    drenes = np.zeros(dem.shape, dtype=np.int32)
+    drenes[60, :] = 1                       # dren que atraviesa la cubeta por el centro
+    drenes[5, :] = 2                        # dren lejos de la cubeta
+    q = {1: 0.05, 2: 1.0}                   # 0.05 m³/s × 3600 s = 180 m³
+    con = core.analizar(dem, validos, 25.0, 50.0, prof_min=0.3, area_min=100,
+                        drenes_id=drenes, caudal_drenes=q, duracion_s=3600.0)
+    d1 = con["depresiones"][0]
+    assert d1["drenes"] == [1]
+    assert d1["q_dren_m3s"] == pytest.approx(0.05)
+    assert d1["vol_dren_m3"] == pytest.approx(180.0)
+    assert d1["vol_entrada_m3"] == pytest.approx(d0["vol_entrada_m3"])
+    assert d1["cota_agua"] < d0["cota_agua"]
+    # con capacidad sobrada la cubeta queda seca
+    seco = core.analizar(dem, validos, 25.0, 50.0, prof_min=0.3, area_min=100,
+                         drenes_id=drenes, caudal_drenes={1: 100.0}, duracion_s=3600.0)
+    ds = seco["depresiones"][0]
+    assert ds["vol_dren_m3"] == pytest.approx(d0["vol_entrada_m3"])
+    assert ds["tirante_max_m"] == pytest.approx(0.0)
+    # en modo rebose los drenes no descuentan nada
+    reb = core.analizar(dem, validos, 25.0, 0.0, modo_rebose=True, prof_min=0.3, area_min=100,
+                        drenes_id=drenes, caudal_drenes=q, duracion_s=3600.0)
+    assert reb["depresiones"][0]["vol_dren_m3"] == 0.0
+
+
+def test_grabar_drenes_conecta():
+    """Un dren grabado con profundidad suficiente vacía la cubeta hacia el borde."""
+    dem = cubeta()
+    drenes = np.zeros(dem.shape, dtype=np.int32)
+    drenes[60, 60:] = 1                     # del centro de la cubeta al borde este
+    d_g = core.grabar_drenes(dem, drenes, {1: 2.5})
+    assert d_g[60, 119] == pytest.approx(97.5)
+    assert d_g[0, 0] == 100.0
+    res0 = core.analizar(dem, np.ones_like(dem, bool), 25.0, 50.0, prof_min=0.3, area_min=100)
+    res = core.analizar(d_g, np.ones_like(dem, bool), 25.0, 50.0, prof_min=0.3, area_min=100)
+    # la cubeta vierte ahora por el fondo del dren (100 - 2.5) y queda reducida
+    # al surco del propio dren dentro de la cubeta
+    assert len(res["depresiones"]) == 1
+    d = res["depresiones"][0]
+    assert d["cota_rebose"] == pytest.approx(97.5)
+    assert d["vol_rebose_m3"] < 0.05 * res0["depresiones"][0]["vol_rebose_m3"]
+    # con profundidad 0 no cambia nada
+    assert np.array_equal(core.grabar_drenes(dem, drenes, {1: 0.0}), dem)

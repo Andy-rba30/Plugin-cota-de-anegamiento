@@ -9,7 +9,8 @@ def test_algoritmo_completo_define_parametros():
     a.initAlgorithm()
     nombres = [p.name() for p in a.parameterDefinitions()]
     assert nombres[0] == "DEM"
-    for n in ("EJE", "P_DISENO", "CN", "CELDA", "HUECOS", "OUT_DEPRESIONES", "OUT_INFORME", "OUT_APORTE"):
+    for n in ("EJE", "P_DISENO", "CN", "CELDA", "HUECOS", "DRENES", "CAMPO_CAUDAL", "DURACION",
+              "OUT_DEPRESIONES", "OUT_INFORME", "OUT_APORTE"):
         assert n in nombres
     assert len(nombres) == len(set(nombres))
     salidas = [o.name() for o in a.outputDefinitions()]
@@ -24,7 +25,8 @@ def test_algoritmo_rapido_solo_dem_visible():
     a.initAlgorithm()
     visibles = [p.name() for p in a.parameterDefinitions()
                 if not p.isDestination() and not (p.flags() & 2)]
-    assert visibles == ["DEM", "EJE", "P_DISENO", "CN", "PROF_MIN", "AREA_MIN", "ALTURA_VIA", "BORDE_LIBRE"]
+    assert visibles == ["DEM", "EJE", "P_DISENO", "CN", "PROF_MIN", "AREA_MIN", "ALTURA_VIA", "BORDE_LIBRE",
+                        "DRENES", "CAMPO_CAUDAL", "CAMPO_ANCHO", "CAMPO_PROF", "DURACION"]
     assert visibles[0] == "DEM"
     # lo especializado sigue en avanzados
     for n in ("SERIE", "TR", "C", "MODO", "CELDA", "HUECOS", "Q_DESB"):

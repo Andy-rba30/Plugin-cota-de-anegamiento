@@ -277,7 +277,8 @@ def _etiquetar(mascara):
 
 def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
              prof_min=0.30, area_min=1000.0, mascara_via=None,
-             progreso=None, cancelado=None):
+             progreso=None, cancelado=None, drenes_id=None, caudal_drenes=None,
+             duracion_s=0.0):
     """Analiza depresiones y calcula la cota de anegamiento.
 
     dem: array 2D float (m).
@@ -288,6 +289,12 @@ def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
     prof_min, area_min: filtros de ruido del DEM.
     mascara_via: array 2D bool con las celdas del eje de la vía (opcional),
                  solo para marcar qué depresiones tocan la vía.
+    drenes_id: array 2D int con el id (>0) del dren que pasa por cada celda
+               (0 = ninguno), opcional.
+    caudal_drenes: dict id -> capacidad del dren (m³/s).
+    duracion_s: duración del evento (s). Volumen que un dren puede evacuar de
+                una depresión = capacidad × duración. Si una depresión la
+                cruzan varios drenes, se suman sus capacidades.
 
     Devuelve un dict con rásters (cota_agua, tirante, etiquetas, aporte,
     rellenado) y la lista de depresiones con sus atributos."""
@@ -396,6 +403,23 @@ def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
     valida = (prof_dep >= prof_min) & (area_dep >= area_min)
     valida[0] = False
 
+    # Drenes: capacidad y volumen evacuable por depresión
+    q_dep = np.zeros(nlab + 1)
+    drenes_dep = {}
+    if drenes_id is not None and caudal_drenes and duracion_s > 0:
+        dr_p = np.zeros((R, C), dtype=np.int64)
+        dr_p[1:-1, 1:-1] = np.asarray(drenes_id, dtype=np.int64)
+        dr_idx = dr_p.ravel()[idx]
+        con = dr_idx > 0
+        if con.any():
+            pares = np.unique(lab_idx[con].astype(np.int64) * (dr_idx.max() + 1) + dr_idx[con])
+            for par in pares.tolist():
+                l, d = divmod(par, int(dr_idx.max() + 1))
+                q = float(caudal_drenes.get(d, 0.0))
+                q_dep[l] += q
+                drenes_dep.setdefault(l, []).append(d)
+    vol_evacuable = q_dep * duracion_s
+
     # --- Balance hídrico en cascada ---------------------------------------
     orden_lagos = sorted(range(1, nlab + 1), key=lambda l: -int(min_pos[l]))
     # celdas de cada depresión, ordenadas por cota
@@ -407,6 +431,7 @@ def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
     lam_m = lamina_escurrida_mm / 1000.0
     entrada = np.zeros(nlab + 1)
     vin = np.zeros(nlab + 1)
+    vdren = np.zeros(nlab + 1)
     nivel = np.full(nlab + 1, np.nan)
     rebosa = np.zeros(nlab + 1, dtype=bool)
     excedente = np.zeros(nlab + 1)
@@ -415,6 +440,9 @@ def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
         v = lam_m * celdas_aporte[l] * area_celda + entrada[l]
         vin[l] = v
         salida = 0.0
+        if valida[l] and vol_evacuable[l] > 0 and not modo_rebose:
+            vdren[l] = min(v, vol_evacuable[l])
+            v -= vdren[l]
         if not valida[l]:
             salida = v
         elif modo_rebose or v >= vmax[l] - 1e-6:
@@ -487,6 +515,9 @@ def analizar(dem, validos, area_celda, lamina_escurrida_mm, modo_rebose=False,
             "vol_rebose_m3": float(vmax[l]),
             "area_aporte_m2": float(celdas_aporte[l] * area_celda),
             "vol_entrada_m3": float(vin[l]),
+            "vol_dren_m3": float(vdren[l]),
+            "q_dren_m3s": float(q_dep[l]),
+            "drenes": sorted(drenes_dep.get(l, [])),
             "excedente_m3": float(excedente[l]),
             "rebosa": bool(rebosa[l]),
             "cota_agua": float(nivel[l]) if np.isfinite(nivel[l]) else float(zmin[l]),
@@ -534,6 +565,20 @@ def curva_cota_volumen(dem, etiquetas, id_dep, area_celda, cota_tope, paso=0.10)
         filas.append((round(cota_tope, 3), bajo.size * area_celda,
                       float(np.sum(cota_tope - bajo) * area_celda)))
     return filas
+
+
+def grabar_drenes(dem, drenes_id, profundidad):
+    """Copia del DEM con las celdas de cada dren rebajadas su profundidad.
+
+    profundidad: dict id -> profundidad (m). Los drenes con profundidad 0 no
+    modifican el DEM."""
+    d = dem.copy()
+    ids = np.asarray(drenes_id)
+    for i, prof in profundidad.items():
+        if prof and prof > 0:
+            m = ids == i
+            d[m] = d[m] - float(prof)
+    return d
 
 
 def elevar_via(dem, mascara_via, altura):

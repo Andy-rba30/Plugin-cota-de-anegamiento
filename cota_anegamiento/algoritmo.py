@@ -45,6 +45,7 @@ from qgis.core import (
     QgsProcessingParameterExtent,
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterFeatureSource,
+    QgsProcessingParameterField,
     QgsProcessingParameterFileDestination,
     QgsProcessingParameterNumber,
     QgsProcessingParameterRasterDestination,
@@ -57,6 +58,11 @@ from . import core, herramientas
 
 # Límite de celdas a partir del cual el DEM se remuestrea automáticamente
 MAX_CELDAS_AUTO = 6_000_000
+
+try:
+    _CAMPO_NUMERICO = Qgis.ProcessingFieldParameterDataType.Numeric
+except AttributeError:
+    _CAMPO_NUMERICO = QgsProcessingParameterField.Numeric
 
 # ---------------------------------------------------------------------------
 # Compatibilidad entre versiones de QGIS 3.x (y QGIS 4)
@@ -438,6 +444,14 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
     BORDE_LIBRE = "BORDE_LIBRE"
     CELDA = "CELDA"
     HUECOS = "HUECOS"
+    DRENES = "DRENES"
+    CAMPO_ANCHO = "CAMPO_ANCHO"
+    CAMPO_CAUDAL = "CAMPO_CAUDAL"
+    CAMPO_PROF = "CAMPO_PROF"
+    ANCHO_DREN = "ANCHO_DREN"
+    CAUDAL_DREN = "CAUDAL_DREN"
+    PROF_DREN = "PROF_DREN"
+    DURACION = "DURACION"
     Q_DESB = "Q_DESB"
     ANCHO_B = "ANCHO_B"
     N_MANNING = "N_MANNING"
@@ -489,6 +503,9 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
             "diseño (SCS-CN o coeficiente C).</li>"
             "<li>Si das el eje de la vía, entrega la cota de agua y la rasante mínima cada cierta distancia, y "
             "repite el análisis con la vía en terraplén para ver dónde se represa el agua (dónde van alcantarillas).</li>"
+            "<li>Si das la red de drenes (líneas con ancho, capacidad y profundidad), descuenta de cada "
+            "depresión el volumen que sus drenes pueden evacuar durante el evento y, si indicas profundidad, "
+            "los graba en el DEM para que conecten las depresiones que atraviesan.</li>"
             "<li>Opcional: tirante del desborde del río en lámina con Manning.</li></ol>"
             "<p><b>Lo único obligatorio es el DEM.</b> Conviene que cubra la zona de estudio con un margen de "
             "2 a 3 km, porque los bordes del DEM se tratan como salidas de agua.</p>"
@@ -536,6 +553,30 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
             type=_NUM_DOUBLE, defaultValue=2.0, minValue=0.0))
         self.addParameter(QgsProcessingParameterNumber(
             self.BORDE_LIBRE, self.tr("Borde libre (m)"), type=_NUM_DOUBLE, defaultValue=0.50, minValue=0.0))
+
+        self.addParameter(QgsProcessingParameterFeatureSource(
+            self.DRENES, self.tr("Red de drenes (líneas, opcional)"), [_TIPO_LINEA], optional=True))
+        self.addParameter(QgsProcessingParameterField(
+            self.CAMPO_CAUDAL, self.tr("Drenes: campo con la capacidad (m³/s)"),
+            parentLayerParameterName=self.DRENES, type=_CAMPO_NUMERICO, optional=True))
+        self.addParameter(QgsProcessingParameterField(
+            self.CAMPO_ANCHO, self.tr("Drenes: campo con el ancho (m)"),
+            parentLayerParameterName=self.DRENES, type=_CAMPO_NUMERICO, optional=True))
+        self.addParameter(QgsProcessingParameterField(
+            self.CAMPO_PROF, self.tr("Drenes: campo con la profundidad (m; para grabarlos en el DEM)"),
+            parentLayerParameterName=self.DRENES, type=_CAMPO_NUMERICO, optional=True))
+        self.addParameter(QgsProcessingParameterNumber(
+            self.DURACION, self.tr("Drenes: duración del evento de lluvia (h)"),
+            type=_NUM_DOUBLE, defaultValue=24.0, minValue=0.0))
+        self.addParameter(_avanzado(QgsProcessingParameterNumber(
+            self.CAUDAL_DREN, self.tr("Drenes: capacidad por defecto si no hay campo (m³/s)"),
+            type=_NUM_DOUBLE, defaultValue=0.0, minValue=0.0)))
+        self.addParameter(_avanzado(QgsProcessingParameterNumber(
+            self.ANCHO_DREN, self.tr("Drenes: ancho por defecto si no hay campo (m)"),
+            type=_NUM_DOUBLE, defaultValue=2.0, minValue=0.0)))
+        self.addParameter(_avanzado(QgsProcessingParameterNumber(
+            self.PROF_DREN, self.tr("Drenes: profundidad por defecto si no hay campo (m; 0 = no grabar)"),
+            type=_NUM_DOUBLE, defaultValue=0.0, minValue=0.0)))
 
         self.addParameter(_avanzado(QgsProcessingParameterNumber(
             self.CELDA, self.tr("Tamaño de celda de trabajo (m; 0 = automático)"),
@@ -721,6 +762,85 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
             mascara_via, polilineas = None, []
         muestras = herramientas.muestrear_polilineas(polilineas, paso) if polilineas else []
 
+        # --- Red de drenes ---------------------------------------------------
+        drenes_id = None
+        caudal_drenes = {}
+        info_drenes = None
+        duracion_h = self.parameterAsDouble(parameters, self.DURACION, context)
+        fuente_dr = self.parameterAsSource(parameters, self.DRENES, context)
+        if fuente_dr is not None:
+            c_q = self.parameterAsString(parameters, self.CAMPO_CAUDAL, context) or ""
+            c_a = self.parameterAsString(parameters, self.CAMPO_ANCHO, context) or ""
+            c_p = self.parameterAsString(parameters, self.CAMPO_PROF, context) or ""
+            q_def = self.parameterAsDouble(parameters, self.CAUDAL_DREN, context)
+            a_def = self.parameterAsDouble(parameters, self.ANCHO_DREN, context)
+            p_def = self.parameterAsDouble(parameters, self.PROF_DREN, context)
+            campos_dr = fuente_dr.fields()
+            nombre_campo = None
+            for cand in ("nombre", "name", "id_dren", "dren", "Layer", "layer"):
+                if campos_dr.indexOf(cand) >= 0:
+                    nombre_campo = cand
+                    break
+
+            def valor(f, campo, defecto):
+                if campo and campos_dr.indexOf(campo) >= 0:
+                    v = f[campo]
+                    try:
+                        if v is not None and str(v).strip() != "":
+                            return float(v)
+                    except (TypeError, ValueError):
+                        pass
+                return float(defecto)
+
+            transf_d = QgsCoordinateTransform(fuente_dr.sourceCrs(), crs, context.transformContext())
+            lista_dr = []
+            prof_drenes = {}
+            for f in fuente_dr.getFeatures():
+                g = QgsGeometry(f.geometry())
+                if g.isNull() or g.isEmpty():
+                    continue
+                if transf_d.isValid() and fuente_dr.sourceCrs().isValid() and crs.isValid():
+                    g.transform(transf_d)
+                partes = g.asGeometryCollection() if g.isMultipart() else [g]
+                pls = [[(pt.x(), pt.y()) for pt in parte.asPolyline()] for parte in partes]
+                pls = [pl for pl in pls if len(pl) >= 2]
+                if not pls:
+                    continue
+                i = len(lista_dr) + 1
+                q = valor(f, c_q, q_def)
+                a = valor(f, c_a, a_def)
+                pr = valor(f, c_p, p_def)
+                nombre = str(f[nombre_campo]) if nombre_campo else ""
+                lista_dr.append({"id": i, "fid": f.id(), "nombre": nombre, "q": q, "ancho": a, "prof": pr,
+                                 "polilineas": pls})
+                caudal_drenes[i] = q
+                prof_drenes[i] = pr
+            if not lista_dr:
+                feedback.pushWarning(self.tr("La capa de drenes no tiene líneas válidas; se ignora."))
+            else:
+                franjas = [(d["id"], pl, d["ancho"]) for d in lista_dr for pl in d["polilineas"]]
+                drenes_id = herramientas.raster_drenes(franjas, gt, dem.shape)
+                if not drenes_id.any():
+                    feedback.pushWarning(self.tr("Los drenes caen fuera del DEM; se ignoran."))
+                    drenes_id = None
+                else:
+                    grabados = any(v > 0 for v in prof_drenes.values())
+                    if grabados:
+                        dem = core.grabar_drenes(dem, drenes_id, prof_drenes)
+                        feedback.pushInfo(self.tr("Drenes grabados en el DEM según su profundidad."))
+                    if not any(v > 0 for v in caudal_drenes.values()):
+                        feedback.pushWarning(self.tr(
+                            "Ningún dren tiene capacidad (m³/s) mayor que cero: no descontarán volumen. Indica el "
+                            "campo de capacidad o la capacidad por defecto."))
+                    if duracion_h <= 0:
+                        feedback.pushWarning(self.tr("La duración del evento es 0 h: los drenes no descontarán "
+                                                     "volumen."))
+                    feedback.pushInfo(self.tr("Red de drenes: %d drenes, duración del evento %.1f h.")
+                                      % (len(lista_dr), duracion_h))
+                    info_drenes = {"capa": fuente_dr.sourceName(), "n": len(lista_dr), "duracion_h": duracion_h,
+                                   "grabados": grabados, "lista": lista_dr}
+        duracion_s = duracion_h * 3600.0
+
         # --- Escenario sin vía ---------------------------------------------
         con_via = mascara_via is not None and altura > 0
         tramo = 0.5 if con_via else 0.9
@@ -732,7 +852,8 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
         try:
             res_sin = core.analizar(dem, validos, area_celda, hid["lamina"], modo_rebose, prof_min, area_min,
                                     mascara_via=mascara_via, progreso=progreso(0.0, tramo),
-                                    cancelado=feedback.isCanceled)
+                                    cancelado=feedback.isCanceled, drenes_id=drenes_id,
+                                    caudal_drenes=caudal_drenes, duracion_s=duracion_s)
         except RuntimeError as err:
             raise QgsProcessingException(str(err))
         feedback.pushInfo(self.tr("Depresiones: %d en total, %d descartadas como ruido, %d analizadas.")
@@ -755,7 +876,8 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
             try:
                 res_con = core.analizar(dem_con, validos, area_celda, hid["lamina"], modo_rebose, prof_min,
                                         area_min, mascara_via=mascara_via, progreso=progreso(0.5, 0.9),
-                                        cancelado=feedback.isCanceled)
+                                        cancelado=feedback.isCanceled, drenes_id=drenes_id,
+                                        caudal_drenes=caudal_drenes, duracion_s=duracion_s)
             except RuntimeError as err:
                 raise QgsProcessingException(str(err))
 
@@ -778,6 +900,9 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
             if res:
                 for d in res["depresiones"]:
                     d["progresiva"] = prog_cercana(d) if d["toca_via"] else None
+        if info_drenes:
+            for dr in info_drenes["lista"]:
+                dr["depresiones"] = sorted(d["id"] for d in res_sin["depresiones"] if dr["id"] in d["drenes"])
 
         resultados = {}
 
@@ -813,6 +938,7 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
         for nombre, tipo in [("id", _T_INT), ("escenario", _T_STR), ("area_m2", _T_DOUBLE),
                              ("prof_max", _T_DOUBLE), ("cota_fondo", _T_DOUBLE), ("cota_rebo", _T_DOUBLE),
                              ("vol_rebo", _T_DOUBLE), ("a_aporte", _T_DOUBLE), ("vol_entr", _T_DOUBLE),
+                             ("vol_dren", _T_DOUBLE), ("q_dren", _T_DOUBLE), ("drenes", _T_STR),
                              ("excedente", _T_DOUBLE), ("se_llena", _T_STR), ("cota_agua", _T_DOUBLE),
                              ("tirante", _T_DOUBLE), ("toca_via", _T_STR), ("vierte_via", _T_STR),
                              ("prog_cerc", _T_STR), ("aguas_ab", _T_INT)]:
@@ -833,7 +959,9 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
                 f.setAttributes([
                     d["id"], esc_nombre, _num(d["area_m2"]), _num(d["prof_max_m"]), _num(d["cota_fondo"]),
                     _num(d["cota_rebose"]), _num(d["vol_rebose_m3"]), _num(d["area_aporte_m2"]),
-                    _num(d["vol_entrada_m3"]), _num(d["excedente_m3"]), "SI" if d["rebosa"] else "NO",
+                    _num(d["vol_entrada_m3"]), _num(d["vol_dren_m3"]), _num(d["q_dren_m3s"]),
+                    ", ".join(str(i) for i in d["drenes"]) or None,
+                    _num(d["excedente_m3"]), "SI" if d["rebosa"] else "NO",
                     _num(d["cota_agua"]), _num(d["tirante_max_m"]), "SI" if d["toca_via"] else "NO",
                     "SI" if d["vierte_sobre_via"] else "NO",
                     herramientas.progresiva_km(d["progresiva"]) if d.get("progresiva") is not None else None,
@@ -932,7 +1060,9 @@ class CotaAnegamientoAlgorithm(QgsProcessingAlgorithm):
                 "modo": self.MODOS[1 if modo_rebose else 0], "prof_min": prof_min, "area_min": area_min,
                 "eje": nombre_eje, "con_via": con_via, "altura_terraplen": altura,
                 "borde_libre": borde, "radio": radio,
+                "drenes": ("%s (%d drenes)" % (info_drenes["capa"], info_drenes["n"])) if info_drenes else None,
             },
+            "drenes": info_drenes,
             "hidrologia": hid,
             "lamina": lamina,
             "escenarios": escenarios,
@@ -1017,6 +1147,11 @@ class CotaAnegamientoRapidoAlgorithm(CotaAnegamientoAlgorithm):
         CotaAnegamientoAlgorithm.AREA_MIN,
         CotaAnegamientoAlgorithm.ALTURA_VIA,
         CotaAnegamientoAlgorithm.BORDE_LIBRE,
+        CotaAnegamientoAlgorithm.DRENES,
+        CotaAnegamientoAlgorithm.CAMPO_CAUDAL,
+        CotaAnegamientoAlgorithm.CAMPO_ANCHO,
+        CotaAnegamientoAlgorithm.CAMPO_PROF,
+        CotaAnegamientoAlgorithm.DURACION,
     )
 
     def createInstance(self):

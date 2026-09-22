@@ -64,6 +64,42 @@ def mascara_polilineas(polilineas, gt, forma):
     return m
 
 
+def raster_drenes(drenes, gt, forma):
+    """Rasteriza drenes como franjas de su ancho. Devuelve array int32 con el
+    id del dren en cada celda (0 = ninguno).
+
+    drenes: lista de (id, polilinea[(x, y)], ancho_m). Un dren más angosto que
+    la celda ocupa al menos la línea de celdas por donde pasa (4 vecinos)."""
+    filas, cols = forma
+    salida = np.zeros(forma, dtype=np.int32)
+    celda = min(abs(gt[1]), abs(gt[5]))
+    for id_dren, pts, ancho in drenes:
+        if len(pts) < 2:
+            continue
+        linea = mascara_polilineas([pts], gt, forma)
+        radio = max(float(ancho or 0.0) / 2.0, 0.0)
+        if radio > celda / 2.0:
+            n = int(math.ceil(radio / celda))
+            paso = celda / 2.0
+            for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
+                L = math.hypot(x1 - x0, y1 - y0)
+                k_max = max(int(math.ceil(L / paso)), 1)
+                for k in range(k_max + 1):
+                    t = k / k_max
+                    x, y = x0 + t * (x1 - x0), y0 + t * (y1 - y0)
+                    f, c = celda_de_xy(x, y, gt)
+                    f0, f1 = max(f - n, 0), min(f + n + 1, filas)
+                    c0, c1 = max(c - n, 0), min(c + n + 1, cols)
+                    if f0 >= f1 or c0 >= c1:
+                        continue
+                    ff, cc = np.mgrid[f0:f1, c0:c1]
+                    cx = gt[0] + (cc + 0.5) * gt[1]
+                    cy = gt[3] + (ff + 0.5) * gt[5]
+                    linea[f0:f1, c0:c1] |= np.hypot(cx - x, cy - y) <= radio
+        salida[linea & (salida == 0)] = int(id_dren)
+    return salida
+
+
 def muestrear_polilineas(polilineas, paso):
     """Puntos cada `paso` m a lo largo de las polilíneas.
 
@@ -389,6 +425,7 @@ def informe_html(ruta, datos):
         ("Modo de cálculo", p["modo"]),
         ("Filtro de ruido", "profundidad ≥ %s m y área ≥ %s m²" % (_n(p["prof_min"]), _n(p["area_min"], 0))),
         ("Eje de la vía", p.get("eje") or "no ingresado"),
+        ("Red de drenes", p.get("drenes") or "no ingresada"),
         ("Altura de terraplén (escenario con vía)", "%s m" % _n(p["altura_terraplen"]) if p.get("con_via") else "no evaluado"),
         ("Borde libre", "%s m" % _n(p["borde_libre"])),
     ]
@@ -420,6 +457,27 @@ def informe_html(ruta, datos):
         w("<p>Escorrentía con coeficiente C = %s: Q = C·P = <b>%s mm</b>.</p>" % (_n(h["c"]), _n(h["lamina"])))
     w("<p>Volumen escurrido hacia cada depresión = Q × área de aporte + excedentes de las depresiones aguas arriba.</p>")
 
+    # --- Drenes --------------------------------------------------------------
+    dr = datos.get("drenes")
+    if dr:
+        w("<h2>Red de drenes</h2>")
+        w("<p>Capa <b>%s</b>: %d drenes. Duración del evento: %s h. Volumen que un dren puede evacuar de una "
+          "depresión = capacidad × duración; si varios drenes cruzan la misma depresión se suman. "
+          "%s</p>" % (e(dr["capa"]), dr["n"], _n(dr["duracion_h"], 1),
+                      "Los drenes se grabaron en el DEM con su profundidad, de modo que conectan las "
+                      "depresiones que atraviesan." if dr.get("grabados") else
+                      "Los drenes no se grabaron en el DEM (profundidad 0): solo descuentan volumen."))
+        w("<table><tr><th>Id</th><th>Nombre</th><th>Ancho (m)</th><th>Profundidad (m)</th>"
+          "<th>Capacidad (m³/s)</th><th>Vol. evacuable (m³)</th><th>Depresiones que cruza</th></tr>")
+        for d in dr["lista"]:
+            w("<tr><td>%d</td><td class='t'>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+              % (d["id"], e(str(d.get("nombre") or "")), _n(d["ancho"]), _n(d["prof"]), _n(d["q"], 3),
+                 _n(d["q"] * dr["duracion_h"] * 3600.0, 0), e(", ".join(str(i) for i in d.get("depresiones", [])) or "-")))
+        w("</table>")
+        w("<div class='aviso'>Simplificación: se supone que el dren funciona a su capacidad durante toda la "
+          "duración del evento y que descarga fuera de la zona de estudio. Las alcantarillas que cruzan la vía "
+          "no se modelan; revisa que los drenes tengan salida real aguas abajo.</div>")
+
     # --- Depresiones -------------------------------------------------------
     for esc in datos["escenarios"]:
         w("<h2>%s</h2>" % e(esc["titulo"]))
@@ -439,6 +497,11 @@ def informe_html(ruta, datos):
                 obs.append("Vierte sobre la vía: requiere alcantarilla")
             elif d.get("toca_via"):
                 obs.append("Toca la vía")
+            if d.get("vol_dren_m3", 0) > 0:
+                obs.append("Dren %s evacúa %s m³" % (", ".join(str(i) for i in d.get("drenes", [])),
+                                                     _n(d["vol_dren_m3"], 0)))
+            elif d.get("drenes"):
+                obs.append("Cruzado por dren %s" % ", ".join(str(i) for i in d["drenes"]))
             w("<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
               "<td>%s</td><td><b>%s</b></td><td>%s</td><td class='t'>%s</td></tr>"
               % (d["id"], progresiva_km(d.get("progresiva")), _n(d["area_m2"], 0), _n(d["cota_fondo"]),
@@ -493,7 +556,9 @@ def informe_html(ruta, datos):
         "Las celdas sin datos y los bordes del DEM se tratan como salidas de agua. Usa un DEM más grande que la "
         "zona de estudio.",
         "Cuando una depresión no se llena, su nivel se calcula como un solo espejo de agua sobre toda la depresión.",
-        "No se consideran infiltración durante el evento, evaporación, drenes, bombeo ni alcantarillas existentes.",
+        "No se consideran infiltración durante el evento, evaporación, bombeo ni alcantarillas existentes. Los "
+        "drenes solo se consideran si se ingresa la red de drenes, y como un descuento de volumen a capacidad "
+        "constante.",
         "El escenario «con vía» supone un terraplén continuo sin alcantarillas: muestra dónde se represa el agua y "
         "sirve para ubicar las obras de cruce, no para dimensionarlas.",
         "El desborde del río se evalúa solo con la fórmula de lámina; no reemplaza un modelo hidráulico 2D.",
@@ -523,6 +588,11 @@ def texto_perfil(datos):
          "realizó un balance hídrico en cascada entre el volumen escurrido y la curva cota-volumen de cada "
          "depresión, con %s y %s. "
          % (_n(p["celda_x"], 1), _n(p["prof_min"]), _n(p["area_min"], 0), lluvia, esc))
+    dr = datos.get("drenes")
+    if dr:
+        t += ("Se consideró la red de drenes existente (%d drenes) descontando de cada depresión el volumen "
+              "que sus drenes pueden evacuar durante el evento (capacidad × %s h). "
+              % (dr["n"], _n(dr["duracion_h"], 0)))
     lam = datos.get("lamina")
     if lam and lam["y"] > 0:
         t += ("Adicionalmente se verificó el desborde del río como flujo en lámina con la ecuación de Manning para "
