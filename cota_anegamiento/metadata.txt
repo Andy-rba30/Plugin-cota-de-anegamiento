@@ -1,0 +1,28 @@
+[general]
+name=Cota de Anegamiento
+qgisMinimumVersion=3.16
+description=Calcula la cota de anegamiento teórica a partir de un DEM (depresiones + balance hídrico) para el diseño de drenaje vial a nivel de perfil. Basta con elegir el DEM.
+about=Identifica las depresiones del DEM con el algoritmo Priority-Flood, descarta el ruido, calcula el área de aporte de cada depresión y hace un balance hídrico en cascada con la lluvia de diseño (Gumbel + SCS-CN o coeficiente C). Prepara el DEM automáticamente (reproyección a UTM si está en grados, remuestreo si es muy grande, relleno de huecos). Con el eje de la vía entrega la cota de agua y la rasante mínima a lo largo del eje, evalúa el represamiento que causa el terraplén (ubicación de alcantarillas) y, opcionalmente, el tirante de desborde del río en lámina (Manning). Genera polígonos, rásters de tirante, cota de agua y áreas de aporte, curvas cota-volumen en CSV y un informe HTML con gráfico del perfil, todo con simbología automática. Solo usa numpy y GDAL, que vienen con QGIS.
+version=1.1.0
+author=Jose Ospina
+tags=hidrología,drenaje,inundación,anegamiento,DEM,depresiones,vías,perfil,alcantarillas
+category=Analysis
+homepage=https://github.com/Andy-rba30/Plugin-cota-de-anegamiento
+tracker=https://github.com/Andy-rba30/Plugin-cota-de-anegamiento/issues
+repository=https://github.com/Andy-rba30/Plugin-cota-de-anegamiento
+experimental=False
+deprecated=False
+hasProcessingProvider=yes
+icon=icon.png
+supportsQt6=True
+changelog=1.1.0
+  - Nuevo algoritmo «Análisis rápido»: solo pide el DEM; el resto de parámetros va en «avanzados».
+  - Preparación automática del DEM: reproyección a UTM si está en grados, remuestreo automático si es muy grande, relleno de huecos interiores sin datos.
+  - Simbología automática en todas las capas de salida (tirante, cota de agua, depresiones, perfil).
+  - Nueva salida opcional: ráster de áreas de aporte por depresión.
+  - Salidas numéricas (cota máxima, rasante, tirante, número de depresiones) para el modelador.
+  - Informe HTML con gráfico SVG del perfil longitudinal.
+  - Avisos cuando el filtro de ruido descarta todo o acepta demasiadas depresiones.
+  - Pruebas automáticas del núcleo de cálculo y empaquetado reproducible.
+ 1.0.0
+  - Versión inicial.

@@ -1,0 +1,14 @@
+Complemento QGIS "Cota de Anegamiento" v1.1.0
+
+Instalación: QGIS > Complementos > Administrar e instalar complementos >
+Instalar a partir de ZIP > elegir cota_anegamiento.zip > Instalar complemento.
+
+Uso rápido: pulsa el ícono de la barra de herramientas, elige el DEM y
+ejecuta. Todo lo demás es opcional (eje de la vía, lluvia, CN, filtros).
+
+Análisis completo: menú Complementos > Cota de Anegamiento > Análisis
+completo, o Procesos > Caja de herramientas > Cota de Anegamiento >
+Hidrología vial.
+
+La guía completa está en Guia_Cota_Anegamiento.pdf (carpeta docs del
+repositorio y menú Complementos > Cota de Anegamiento > Guía de uso).
