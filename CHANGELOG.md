@@ -1,5 +1,10 @@
 # Historial de cambios
 
+## 1.2.1
+- **Corrección:** guardar el ráster de áreas de aporte en GeoPackage (`.gpkg`) fallaba con
+  «Only Byte, Int16, UInt16 or Float32 supported». Ahora se usa el tipo entero que admite el
+  formato de salida (UInt16 o Float32 en GeoPackage; Int32 en GeoTIFF).
+
 ## 1.2.0
 - **Red de drenes.** Nueva entrada opcional: capa de líneas (por ejemplo importada de CAD) con
   campos de capacidad (m³/s), ancho (m) y profundidad (m). Cada dren se rasteriza como franja de

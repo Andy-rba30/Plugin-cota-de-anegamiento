@@ -368,6 +368,19 @@ def _preparar_dem(ruta, extension=None, celda_objetivo=0.0, max_huecos=10, max_c
     return arr, validos, gt, ds.GetProjection() or wkt, notas
 
 
+def _tipo_entero(drv, maximo):
+    """Tipo GDAL para un ráster de ids que el formato de salida acepte.
+
+    GeoPackage, por ejemplo, solo admite Byte, Int16, UInt16 y Float32."""
+    from osgeo import gdal
+    admitidos = (drv.GetMetadataItem("DMD_CREATIONDATATYPES") or "").split()
+    if not admitidos or "Int32" in admitidos:
+        return gdal.GDT_Int32
+    if "UInt16" in admitidos and maximo <= 65535:
+        return gdal.GDT_UInt16
+    return gdal.GDT_Float32  # exacto para ids hasta 16 777 216
+
+
 def _escribir_raster(ruta, arr, gt, wkt, nodata=-9999.0, entero=False):
     from osgeo import gdal
     from qgis.core import QgsRasterFileWriter
@@ -376,7 +389,7 @@ def _escribir_raster(ruta, arr, gt, wkt, nodata=-9999.0, entero=False):
     drv = gdal.GetDriverByName(driver_nombre or "GTiff") or gdal.GetDriverByName("GTiff")
     filas, cols = arr.shape
     opciones = ["COMPRESS=DEFLATE", "TILED=YES"] if drv.ShortName == "GTiff" else []
-    tipo = gdal.GDT_Int32 if entero else gdal.GDT_Float32
+    tipo = _tipo_entero(drv, int(np.max(arr)) if arr.size else 0) if entero else gdal.GDT_Float32
     ds = drv.Create(ruta, cols, filas, 1, tipo, options=opciones)
     if ds is None:
         raise QgsProcessingException(_tr("No se pudo crear el ráster de salida: %s") % ruta)
@@ -385,7 +398,7 @@ def _escribir_raster(ruta, arr, gt, wkt, nodata=-9999.0, entero=False):
     b = ds.GetRasterBand(1)
     if entero:
         b.SetNoDataValue(0)
-        b.WriteArray(arr.astype(np.int32))
+        b.WriteArray(arr.astype(np.float32 if tipo == gdal.GDT_Float32 else np.int32))
     else:
         b.SetNoDataValue(nodata)
         b.WriteArray(np.where(np.isfinite(arr), arr, nodata).astype(np.float32))

@@ -46,3 +46,28 @@ def test_proveedor_registra_dos_algoritmos():
 def test_plugin_importa():
     from cota_anegamiento import plugin
     assert plugin.ID_ALGORITMO_RAPIDO == "cotaanegamiento:cota_anegamiento_rapido"
+
+
+def test_raster_de_ids_usa_tipo_admitido_por_el_formato(monkeypatch):
+    """GeoPackage no admite Int32: el ráster de áreas de aporte debe usar otro tipo."""
+    import sys
+    import types
+    gdal = types.SimpleNamespace(GDT_Int32="Int32", GDT_UInt16="UInt16", GDT_Float32="Float32")
+    osgeo = types.ModuleType("osgeo")
+    osgeo.gdal = gdal
+    monkeypatch.setitem(sys.modules, "osgeo", osgeo)
+    monkeypatch.setitem(sys.modules, "osgeo.gdal", gdal)
+
+    class Driver:
+        def __init__(self, tipos):
+            self.tipos = tipos
+
+        def GetMetadataItem(self, clave):
+            return self.tipos if clave == "DMD_CREATIONDATATYPES" else None
+
+    gtiff = Driver("Byte Int8 UInt16 Int16 UInt32 Int32 Float32 Float64")
+    gpkg = Driver("Byte Int16 UInt16 Float32")
+    assert algoritmo._tipo_entero(gtiff, 2657) == "Int32"
+    assert algoritmo._tipo_entero(Driver(None), 2657) == "Int32"
+    assert algoritmo._tipo_entero(gpkg, 2657) == "UInt16"
+    assert algoritmo._tipo_entero(gpkg, 70000) == "Float32"
